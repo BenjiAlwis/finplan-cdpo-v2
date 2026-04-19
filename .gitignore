@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Test/cache
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Logs
+*.log
+
+# Editor/OS
+.vscode/
+.idea/
+.DS_Store
+
+# Secrets
+.env
+*.env
+
+# ML / experiment outputs
+outputs/
+checkpoints/
+runs/
+wandb/
+cache/
+tmp/
+
+# Data
+data/raw/
+data/processed/
+
+# Hugging Face / model caches
+.huggingface/
+hf_cache/
