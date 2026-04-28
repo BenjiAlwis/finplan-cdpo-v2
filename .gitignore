@@ -49,3 +49,12 @@ data/processed/
 # Hugging Face / model caches
 .huggingface/
 hf_cache/
+
+# RL training outputs
+data/rl_runs/
+
+# Large model/checkpoint files
+*.pt
+*.pth
+*.bin
+*.safetensors

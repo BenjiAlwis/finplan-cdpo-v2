@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import inspect
 import json
 from pathlib import Path
 from typing import Any
@@ -21,16 +22,106 @@ def parse_args() -> argparse.Namespace:
 
 def load_config(path: str) -> dict[str, Any]:
     with open(path, 'r', encoding='utf-8') as f:
-        return yaml.safe_load(f)
+        cfg = yaml.safe_load(f)
+    if not isinstance(cfg, dict):
+        raise ValueError(f'Config file must contain a YAML mapping: {path}')
+    return cfg
 
 
 def _load_json_dataset(path: str):
+    if not Path(path).exists():
+        raise FileNotFoundError(
+            f'Dataset file not found: {path}. '
+            'Run `python scripts/build_training_prompts.py` first if needed.'
+        )
     return load_dataset('json', data_files=path, split='train')
+
+
+def _validate_generation_batch(cfg: dict[str, Any]) -> None:
+    """Fail early if the GRPO batch shape is incompatible with num_generations.
+
+    TRL requires the global effective batch size to be divisible by num_generations.
+    On single-GPU Runpod, num_processes is usually 1, so this mainly checks:
+        per_device_train_batch_size * gradient_accumulation_steps % num_generations == 0
+    For multi-GPU runs launched with accelerate, set num_processes in the YAML to match
+    the number of processes if you want this local validation to reflect the global batch.
+    """
+    num_processes = int(cfg.get('num_processes', 1))
+    per_device_train_batch_size = int(cfg.get('per_device_train_batch_size', 1))
+    gradient_accumulation_steps = int(cfg.get('gradient_accumulation_steps', 1))
+    num_generations = int(cfg.get('num_generations', 8))
+
+    effective_batch = num_processes * per_device_train_batch_size * gradient_accumulation_steps
+    if effective_batch % num_generations != 0:
+        raise ValueError(
+            'Invalid GRPO batch configuration: '
+            f'num_processes({num_processes}) * '
+            f'per_device_train_batch_size({per_device_train_batch_size}) * '
+            f'gradient_accumulation_steps({gradient_accumulation_steps}) = {effective_batch}, '
+            f'which is not divisible by num_generations({num_generations}). '
+            'For a single-GPU smoke test, try per_device_train_batch_size=2 and num_generations=2. '
+            'For a larger run, try per_device_train_batch_size=4 and num_generations=4, '
+            'or per_device_train_batch_size=8 and num_generations=8 if memory allows.'
+        )
+
+
+def _build_grpo_config_kwargs(cfg: dict[str, Any], output_dir: Path) -> dict[str, Any]:
+    """Build GRPOConfig kwargs while staying tolerant of TRL version differences."""
+    requested: dict[str, Any] = {
+        'output_dir': str(output_dir),
+        'run_name': cfg.get('run_name', 'grpo_baseline'),
+        'learning_rate': float(cfg.get('learning_rate', 1e-6)),
+        'per_device_train_batch_size': int(cfg.get('per_device_train_batch_size', 1)),
+        'per_device_eval_batch_size': int(cfg.get('per_device_eval_batch_size', 1)),
+        'gradient_accumulation_steps': int(cfg.get('gradient_accumulation_steps', 1)),
+        'num_generations': int(cfg.get('num_generations', 8)),
+        'generation_batch_size': int(cfg.get('generation_batch_size', cfg.get('num_generations', 8))),
+        'max_prompt_length': int(cfg.get('max_prompt_length', 1024)),
+        'max_completion_length': int(cfg.get('max_completion_length', 256)),
+        'temperature': float(cfg.get('temperature', 1.0)),
+        'top_p': float(cfg.get('top_p', 1.0)),
+        'top_k': int(cfg.get('top_k', 0)),
+        'num_train_epochs': float(cfg.get('num_train_epochs', 1.0)),
+        'max_steps': int(cfg.get('max_steps', -1)),
+        'logging_steps': int(cfg.get('logging_steps', 1)),
+        'eval_strategy': cfg.get('eval_strategy', 'steps'),
+        'eval_steps': int(cfg.get('eval_steps', 50)),
+        'save_steps': int(cfg.get('save_steps', 50)),
+        'save_total_limit': int(cfg.get('save_total_limit', 2)),
+        'beta': float(cfg.get('beta', 0.04)),
+        'scale_rewards': cfg.get('scale_rewards', 'group'),
+        'report_to': cfg.get('report_to', 'tensorboard'),
+        'remove_unused_columns': bool(cfg.get('remove_unused_columns', False)),
+        'log_completions': bool(cfg.get('log_completions', False)),
+        'log_unique_prompts': bool(cfg.get('log_unique_prompts', False)),
+        'seed': int(cfg.get('seed', 42)),
+        'use_cpu': bool(cfg.get('use_cpu', False)),
+        'bf16': bool(cfg.get('bf16', False)),
+        'fp16': bool(cfg.get('fp16', False)),
+        'gradient_checkpointing': bool(cfg.get('gradient_checkpointing', False)),
+    }
+
+    signature = inspect.signature(GRPOConfig.__init__)
+    supported = set(signature.parameters)
+
+    # Some transformers/trl versions use evaluation_strategy instead of eval_strategy.
+    if 'eval_strategy' not in supported and 'evaluation_strategy' in supported:
+        requested['evaluation_strategy'] = requested.pop('eval_strategy')
+
+    filtered = {key: value for key, value in requested.items() if key in supported}
+    dropped = sorted(set(requested) - set(filtered))
+    if dropped:
+        print(
+            '[run_grpo_baseline] Warning: ignoring GRPOConfig keys not supported '
+            f'by this installed TRL version: {dropped}'
+        )
+    return filtered
 
 
 def main() -> None:
     args = parse_args()
     cfg = load_config(args.config)
+    _validate_generation_batch(cfg)
 
     output_dir = Path(cfg['output_dir'])
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -39,40 +130,14 @@ def main() -> None:
     eval_dataset = _load_json_dataset(cfg['eval_path']) if cfg.get('eval_path') else None
 
     tokenizer = AutoTokenizer.from_pretrained(cfg['model_name'])
+    tokenizer.padding_side = 'left'
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
     wrapper = FinPlanRewardWrapper()
     reward_func = build_monolithic_reward_func(wrapper)
 
-    training_args = GRPOConfig(
-        output_dir=str(output_dir),
-        run_name=cfg.get('run_name', 'grpo_baseline'),
-        learning_rate=float(cfg.get('learning_rate', 1e-6)),
-        per_device_train_batch_size=int(cfg.get('per_device_train_batch_size', 1)),
-        per_device_eval_batch_size=int(cfg.get('per_device_eval_batch_size', 1)),
-        gradient_accumulation_steps=int(cfg.get('gradient_accumulation_steps', 1)),
-        num_generations=int(cfg.get('num_generations', 8)),
-        generation_batch_size=int(cfg.get('generation_batch_size', 1)),
-        max_completion_length=int(cfg.get('max_completion_length', 256)),
-        num_train_epochs=float(cfg.get('num_train_epochs', 1.0)),
-        max_steps=int(cfg.get('max_steps', -1)),
-        logging_steps=int(cfg.get('logging_steps', 1)),
-        eval_strategy=cfg.get('eval_strategy', 'steps'),
-        eval_steps=int(cfg.get('eval_steps', 50)),
-        save_steps=int(cfg.get('save_steps', 50)),
-        save_total_limit=int(cfg.get('save_total_limit', 2)),
-        beta=float(cfg.get('beta', 0.04)),
-        scale_rewards=cfg.get('scale_rewards', 'group'),
-        report_to=cfg.get('report_to', 'tensorboard'),
-        remove_unused_columns=bool(cfg.get('remove_unused_columns', False)),
-        log_completions=bool(cfg.get('log_completions', False)),
-        log_unique_prompts=bool(cfg.get('log_unique_prompts', False)),
-        seed=int(cfg.get('seed', 42)),
-        use_cpu=bool(cfg.get('use_cpu', False)),
-        bf16=bool(cfg.get('bf16', False)),
-        fp16=bool(cfg.get('fp16', False)),
-    )
+    training_args = GRPOConfig(**_build_grpo_config_kwargs(cfg, output_dir))
 
     trainer = GRPOTrainer(
         model=cfg['model_name'],

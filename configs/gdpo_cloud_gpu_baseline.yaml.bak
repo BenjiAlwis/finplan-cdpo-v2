@@ -1,26 +1,40 @@
 model_name: Qwen/Qwen2.5-7B-Instruct
-run_name: grpo_finplan_week2
+run_name: gdpo_finplan_week2_gpu
+
 train_path: data/training/train_prompts.jsonl
 eval_path: data/training/eval_prompts.jsonl
-output_dir: data/rl_runs/grpo_baseline
+output_dir: data/rl_runs/gdpo_baseline
+
 report_to: tensorboard
+
 learning_rate: 1.0e-6
 per_device_train_batch_size: 1
-per_device_eval_batch_size: 1
+per_device_eval_batch_size: 8
 gradient_accumulation_steps: 1
+
 num_generations: 8
+generation_batch_size: 8
+
 max_prompt_length: 1024
 max_completion_length: 128
+
 num_train_epochs: 1.0
-max_steps: 5
+max_steps: 200
+
 logging_steps: 1
 eval_strategy: steps
-eval_steps: 2
-save_steps: 5
+eval_steps: 50
+save_steps: 50
 save_total_limit: 2
+
 beta: 0.04
 scale_rewards: group
+multi_objective_aggregation: normalize_then_sum
 remove_unused_columns: false
 log_completions: false
 log_unique_prompts: false
+
 seed: 42
+use_cpu: false
+bf16: true
+fp16: false

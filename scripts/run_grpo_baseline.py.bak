@@ -53,6 +53,7 @@ def main() -> None:
         per_device_eval_batch_size=int(cfg.get('per_device_eval_batch_size', 1)),
         gradient_accumulation_steps=int(cfg.get('gradient_accumulation_steps', 1)),
         num_generations=int(cfg.get('num_generations', 8)),
+        generation_batch_size=int(cfg.get('generation_batch_size', 1)),
         max_completion_length=int(cfg.get('max_completion_length', 256)),
         num_train_epochs=float(cfg.get('num_train_epochs', 1.0)),
         max_steps=int(cfg.get('max_steps', -1)),
@@ -68,6 +69,9 @@ def main() -> None:
         log_completions=bool(cfg.get('log_completions', False)),
         log_unique_prompts=bool(cfg.get('log_unique_prompts', False)),
         seed=int(cfg.get('seed', 42)),
+        use_cpu=bool(cfg.get('use_cpu', False)),
+        bf16=bool(cfg.get('bf16', False)),
+        fp16=bool(cfg.get('fp16', False)),
     )
 
     trainer = GRPOTrainer(
