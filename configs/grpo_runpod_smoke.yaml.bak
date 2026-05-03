@@ -1,0 +1,44 @@
+model_name: Qwen/Qwen2.5-0.5B-Instruct
+run_name: grpo_finplan_runpod_smoke
+
+train_path: data/training/train_prompts.jsonl
+eval_path: data/training/eval_prompts.jsonl
+output_dir: data/rl_runs/grpo_runpod_smoke
+
+report_to: tensorboard
+
+learning_rate: 1.0e-6
+per_device_train_batch_size: 2
+per_device_eval_batch_size: 2
+gradient_accumulation_steps: 1
+
+num_generations: 2
+generation_batch_size: 2
+
+max_prompt_length: 1024
+max_completion_length: 64
+
+temperature: 1.0
+top_p: 1.0
+top_k: 0
+
+num_train_epochs: 1.0
+max_steps: 3
+
+logging_steps: 1
+eval_strategy: steps
+eval_steps: 1
+save_steps: 1
+save_total_limit: 1
+
+beta: 0.04
+scale_rewards: group
+remove_unused_columns: false
+log_completions: true
+log_unique_prompts: true
+
+seed: 42
+use_cpu: false
+bf16: true
+fp16: false
+gradient_checkpointing: false

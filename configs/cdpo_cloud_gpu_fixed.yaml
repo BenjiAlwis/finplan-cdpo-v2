@@ -1,48 +1,40 @@
 model_name: Qwen/Qwen2.5-7B-Instruct
-run_name: grpo_finplan_week2_gpu
+run_name: cdpo_finplan_week3_fixed_gpu
 
 train_path: data/training/train_prompts.jsonl
 eval_path: data/training/eval_prompts.jsonl
-output_dir: data/rl_runs/grpo_baseline
+output_dir: data/rl_runs/cdpo_fixed
+diagnostics_path: data/rl_runs/cdpo_fixed/diagnostics.jsonl
 
 report_to: tensorboard
-
 learning_rate: 1.0e-6
-
-# Single-GPU Runpod-safe starting point. Increase to 8/8 only if memory allows.
-per_device_train_batch_size: 4
+per_device_train_batch_size: 1
 per_device_eval_batch_size: 4
-gradient_accumulation_steps: 1
-
-# Must divide the effective global batch size.
-# Single GPU: 1 * per_device_train_batch_size * gradient_accumulation_steps = 4.
-num_generations: 4
-generation_batch_size: 4
-
+gradient_accumulation_steps: 8
+num_generations: 8
+generation_batch_size: 8
 max_prompt_length: 1024
 max_completion_length: 128
-
 temperature: 1.0
 top_p: 1.0
 top_k: 0
-
 num_train_epochs: 1.0
 max_steps: 200
-
 logging_steps: 1
 eval_strategy: steps
 eval_steps: 50
 save_steps: 50
 save_total_limit: 2
-
 beta: 0.04
 scale_rewards: group
 remove_unused_columns: false
 log_completions: false
 log_unique_prompts: false
-
 seed: 42
 use_cpu: false
 bf16: true
 fp16: false
 gradient_checkpointing: true
+alpha_mode: fixed
+fixed_alpha: 0.7
+cdpo_final_batch_normalize: true

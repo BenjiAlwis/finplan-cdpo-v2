@@ -12,6 +12,3 @@ trl>=0.11.0
 
 # Optional but useful on Runpod / Jupyter images
 ipykernel>=6.29.0
-
-# Optional analysis/plotting dependencies
-matplotlib>=3.8.0
