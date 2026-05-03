@@ -79,6 +79,8 @@ def _build_grpo_config_kwargs(cfg: dict[str, Any], output_dir: Path) -> dict[str
         'eval_steps': int(cfg.get('eval_steps', 50)),
         'save_steps': int(cfg.get('save_steps', 50)),
         'save_total_limit': int(cfg.get('save_total_limit', 2)),
+        'save_strategy': cfg.get('save_strategy', 'steps'),
+        'save_only_model': bool(cfg.get('save_only_model', False)),
         'beta': float(cfg.get('beta', 0.04)),
         'scale_rewards': cfg.get('scale_rewards', 'group'),
         'multi_objective_aggregation': cfg.get(
@@ -133,7 +135,8 @@ def main() -> None:
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
-    wrapper = FinPlanRewardWrapper()
+    diagnostics_path = cfg.get('diagnostics_path', str(output_dir / 'diagnostics.jsonl'))
+    wrapper = FinPlanRewardWrapper(diagnostics_path=diagnostics_path, method='gdpo')
     reward_funcs = build_gdpo_reward_funcs(wrapper)
 
     training_args = GRPOConfig(**_build_grpo_config_kwargs(cfg, output_dir))

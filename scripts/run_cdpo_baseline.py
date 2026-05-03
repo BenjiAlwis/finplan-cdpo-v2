@@ -67,6 +67,8 @@ def build_training_args(cfg: dict[str, Any], output_dir: Path) -> GRPOConfig:
         'eval_steps': int(cfg.get('eval_steps', 50)),
         'save_steps': int(cfg.get('save_steps', 50)),
         'save_total_limit': int(cfg.get('save_total_limit', 2)),
+        'save_strategy': cfg.get('save_strategy', 'steps'),
+        'save_only_model': bool(cfg.get('save_only_model', False)),
         'beta': float(cfg.get('beta', 0.04)),
         # CDPO returns a pre-normalized scalar; keep TRL's group normalization on
         # to stabilize gradient magnitudes, matching the final normalization step.
