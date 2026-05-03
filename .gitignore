@@ -5,9 +5,9 @@ __pycache__/
 *.pyd
 
 # Virtual environments
-.venv/
+/.venv/
 venv/
-env/
+/env/
 
 # Jupyter
 .ipynb_checkpoints/
@@ -58,3 +58,7 @@ data/rl_runs/
 *.pth
 *.bin
 *.safetensors
+
+# Keep FinPlanEnv source package
+!src/finplan/env/
+!src/finplan/env/**
