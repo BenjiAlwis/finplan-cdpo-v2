@@ -44,14 +44,54 @@ def _serialize_task(task: TaskInstance) -> str:
     return json.dumps(payload, ensure_ascii=False)
 
 
+def _extract_first_json_object(text: str) -> str:
+    """Return the first balanced JSON object found in text.
+
+    Early RL completions often include prose or markdown fences around JSON.
+    For reward computation, evaluate the first syntactically complete object.
+    If no balanced object exists, return the original text so parser errors are
+    still informative.
+    """
+    start = text.find('{')
+    if start < 0:
+        return text
+
+    depth = 0
+    in_string = False
+    escape = False
+
+    for idx in range(start, len(text)):
+        ch = text[idx]
+
+        if in_string:
+            if escape:
+                escape = False
+            elif ch == '\\':
+                escape = True
+            elif ch == '"':
+                in_string = False
+            continue
+
+        if ch == '"':
+            in_string = True
+        elif ch == '{':
+            depth += 1
+        elif ch == '}':
+            depth -= 1
+            if depth == 0:
+                return text[start : idx + 1]
+
+    return text
+
+
 def _completion_to_text(completion: Any) -> str:
     if isinstance(completion, str):
-        return completion
+        return _extract_first_json_object(completion)
     if isinstance(completion, dict):
         if 'content' in completion and isinstance(completion['content'], str):
-            return completion['content']
+            return _extract_first_json_object(completion['content'])
         if 'text' in completion and isinstance(completion['text'], str):
-            return completion['text']
+            return _extract_first_json_object(completion['text'])
         if 'messages' in completion:
             return _completion_to_text(completion['messages'])
     if isinstance(completion, list):
@@ -61,8 +101,8 @@ def _completion_to_text(completion: Any) -> str:
                 parts.append(item['content'])
             else:
                 parts.append(str(item))
-        return '\n'.join(parts)
-    return str(completion)
+        return _extract_first_json_object('\n'.join(parts))
+    return _extract_first_json_object(str(completion))
 
 
 def _safe_mean(values: Sequence[float]) -> float:
@@ -173,21 +213,30 @@ class FinPlanRewardWrapper:
 
 
 def build_monolithic_reward_func(wrapper: FinPlanRewardWrapper) -> Callable[..., list[float]]:
-    """GRPO baseline: one scalar reward = hard feasibility gate × soft quality."""
+    """GRPO baseline: monolithic scalar reward with parse cold-start shaping.
+
+    The reported combined_quality metric remains the strict hard-gated quality.
+    The training reward adds a small parse/schema component so early training is
+    not completely zero when the model emits prose or markdown instead of JSON.
+    """
 
     def reward_func(completions: list[Any], task_json: list[str], **kwargs: Any) -> list[float]:
         eval_rows = wrapper.evaluate_batch(completions=completions, task_json=task_json)
-        rewards = [float(row['combined_quality']) for row in eval_rows]
+        rewards = [
+            0.2 * float(bool(row.get('parse_success', False)))
+            + 0.8 * float(row.get('combined_quality', 0.0))
+            for row in eval_rows
+        ]
         wrapper.log_batch_diagnostics(
             eval_rows,
             kwargs,
             task_json=task_json,
             reward_values=rewards,
-            reward_name='monolithic_combined_quality',
+            reward_name='monolithic_parse_shaped_combined_quality',
         )
         return rewards
 
-    reward_func.__name__ = 'monolithic_combined_quality_reward_func'
+    reward_func.__name__ = 'monolithic_parse_shaped_combined_quality_reward_func'
     return reward_func
 
 

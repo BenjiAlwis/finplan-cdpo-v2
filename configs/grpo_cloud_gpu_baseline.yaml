@@ -11,7 +11,7 @@ gradient_accumulation_steps: 1
 num_generations: 2
 generation_batch_size: 2
 max_prompt_length: 1024
-max_completion_length: 32
+max_completion_length: 96
 temperature: 1.0
 top_p: 1.0
 top_k: 0
@@ -25,7 +25,7 @@ save_total_limit: 1
 beta: 0.0
 scale_rewards: group
 remove_unused_columns: false
-log_completions: false
+log_completions: true
 log_unique_prompts: false
 seed: 42
 use_cpu: false
