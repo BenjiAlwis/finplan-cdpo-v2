@@ -62,6 +62,7 @@ def _build_grpo_config_kwargs(cfg: dict[str, Any], output_dir: Path) -> dict[str
         'output_dir': str(output_dir),
         'run_name': cfg.get('run_name', 'gdpo_baseline'),
         'learning_rate': float(cfg.get('learning_rate', 1e-6)),
+        'optim': cfg.get('optim', 'adamw_torch'),
         'per_device_train_batch_size': int(cfg.get('per_device_train_batch_size', 1)),
         'per_device_eval_batch_size': int(cfg.get('per_device_eval_batch_size', 1)),
         'gradient_accumulation_steps': int(cfg.get('gradient_accumulation_steps', 1)),
