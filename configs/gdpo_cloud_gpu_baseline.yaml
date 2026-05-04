@@ -36,3 +36,4 @@ gradient_checkpointing: true
 save_only_model: true
 optim: adafactor
 save_strategy: 'no'
+save_final_model: false

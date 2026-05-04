@@ -1,13 +1,11 @@
 model_name: Qwen/Qwen2.5-7B-Instruct
 run_name: cdpo_finplan_week3_adaptive_gpu
-
 train_path: data/training/train_prompts.jsonl
 eval_path: data/training/eval_prompts.jsonl
 output_dir: data/rl_runs/cdpo_learned
 diagnostics_path: data/rl_runs/cdpo_learned/diagnostics.jsonl
-
 report_to: tensorboard
-learning_rate: 1.0e-6
+learning_rate: 1.0e-06
 per_device_train_batch_size: 1
 per_device_eval_batch_size: 4
 gradient_accumulation_steps: 8
@@ -23,8 +21,8 @@ max_steps: 200
 logging_steps: 1
 eval_strategy: steps
 eval_steps: 50
-save_steps: 50
-save_total_limit: 2
+save_steps: 999999
+save_total_limit: 1
 beta: 0.04
 scale_rewards: group
 remove_unused_columns: false
@@ -39,3 +37,6 @@ alpha_mode: learned
 learned_min_alpha: 0.35
 learned_max_alpha: 0.9
 cdpo_final_batch_normalize: true
+save_final_model: false
+save_strategy: 'no'
+save_only_model: true

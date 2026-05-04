@@ -152,7 +152,10 @@ def main() -> None:
     )
 
     trainer.train()
-    trainer.save_model(str(output_dir / 'final_model'))
+    if bool(cfg.get('save_final_model', True)):
+        trainer.save_model(str(output_dir / 'final_model'))
+    else:
+        print('[runner] Skipping final model save because save_final_model=false', flush=True)
 
     metadata = {
         'config': cfg,
